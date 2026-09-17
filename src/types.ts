@@ -1,5 +1,5 @@
 export type Platform = 'linkedin' | 'twitter' | 'instagram';
-export type PostStatus = 'scheduled' | 'sent' | 'draft' | 'failed';
+export type PostStatus = 'scheduled' | 'sent' | 'published' | 'draft' | 'failed';
 export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
 
 export interface UserProfile {

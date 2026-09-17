@@ -105,7 +105,7 @@ export const PostsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             try {
               const postDocRef = doc(db, 'posts', post.id);
               await updateDoc(postDocRef, {
-                status: 'sent',
+                status: 'published',
                 sentAt: new Date().toISOString(),
                 metrics: {
                   impressions: Math.floor(Math.random() * 450 + 120),

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import { usePosts } from './context/PostsContext';
 import { Workspace } from './components/Workspace';
@@ -44,6 +44,17 @@ export default function App() {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4500);
   };
+
+  const prevNotificationsLenRef = useRef(dispatchedNotifications.length);
+  useEffect(() => {
+    if (dispatchedNotifications.length > prevNotificationsLenRef.current) {
+      const latest = dispatchedNotifications[0];
+      if (latest) {
+        showToast(latest.message, 'success');
+      }
+    }
+    prevNotificationsLenRef.current = dispatchedNotifications.length;
+  }, [dispatchedNotifications]);
 
   const scheduledCount = posts.filter(p => p.status === 'scheduled').length;
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { usePosts } from '../context/PostsContext';
 import { Platform } from '../types';
@@ -80,6 +81,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
   const [genStep, setGenStep] = useState(0);
   const [genStepText, setGenStepText] = useState('');
   const [copied, setCopied] = useState(false);
+  const [generationKey, setGenerationKey] = useState(0);
 
   const currentPlatform = PLATFORMS_CONFIG[activePlatform];
   const charCount = draft.length;
@@ -119,6 +121,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
           }
 
           setDraft(newPost);
+          setGenerationKey(prev => prev + 1);
           setIsGenerating(false);
           setGenStep(0);
           showToast(`System package generated for ${currentPlatform.name}.`, 'success');
@@ -539,22 +542,30 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
                   <i className={`${currentPlatform.icon} text-xs`} style={{ color: currentPlatform.color }} />
                 </div>
 
-                {/* Simulated Post Text */}
-                <div className="text-xs text-zinc-200 leading-relaxed font-sans whitespace-pre-line break-words">
-                  {draft || 'Draft text will mirror here in real time...'}
-                </div>
+                {/* Simulated Post Text & Content with Framer Motion Transition */}
+                <motion.div
+                  key={generationKey}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  {/* Simulated Post Text */}
+                  <div className="text-xs text-zinc-200 leading-relaxed font-sans whitespace-pre-line break-words">
+                    {draft || 'Draft text will mirror here in real time...'}
+                  </div>
 
-                {/* Simulated Link Card */}
-                <div className="rounded-xl overflow-hidden border border-white/[0.08] bg-zinc-900/50 backdrop-blur-md my-3">
-                  <div className="h-20 bg-gradient-to-tr from-zinc-900/80 via-zinc-850/60 to-zinc-900/80 flex items-center justify-center p-2 text-center">
-                    <div>
-                      <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-300 bg-zinc-800/80 px-1.5 py-0.5 rounded border border-white/[0.08]">
-                        Target Asset
-                      </span>
-                      <h4 className="text-[11px] font-bold text-white mt-1">VibeScribe OS — Social Scheduler</h4>
+                  {/* Simulated Link Card */}
+                  <div className="rounded-xl overflow-hidden border border-white/[0.08] bg-zinc-900/50 backdrop-blur-md my-3">
+                    <div className="h-20 bg-gradient-to-tr from-zinc-900/80 via-zinc-850/60 to-zinc-900/80 flex items-center justify-center p-2 text-center">
+                      <div>
+                        <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-300 bg-zinc-800/80 px-1.5 py-0.5 rounded border border-white/[0.08]">
+                          Target Asset
+                        </span>
+                        <h4 className="text-[11px] font-bold text-white mt-1">VibeScribe OS — Social Scheduler</h4>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
 
               {/* Simulated Metrics Bar */}
