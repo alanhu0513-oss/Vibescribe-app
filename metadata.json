@@ -1,0 +1,6 @@
+{
+  "name": "VibeScribe AI — Social Media Workspace & Content Scheduler",
+  "description": "AI-powered social media workspace and content scheduler with multi-platform preview, intelligent prompt generation, real account security, and subscription system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

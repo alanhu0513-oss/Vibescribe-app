@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile & Subscription Record",
+      "description": "Stores user account details, role, security credentials, subscription tier, and plan usage quota.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "email": { "type": "string", "description": "User's email address." },
+        "displayName": { "type": "string", "description": "User's full name or handle." },
+        "photoURL": { "type": "string", "description": "Avatar URL or initial." },
+        "subscriptionTier": { "type": "string", "enum": ["free", "pro", "enterprise"], "description": "User's current active subscription plan." },
+        "subscriptionStatus": { "type": "string", "enum": ["active", "trialing", "past_due", "canceled"], "description": "Status of the subscription." },
+        "monthlyPostLimit": { "type": "number", "description": "Maximum posts that can be scheduled/sent per billing cycle." },
+        "postsUsedThisMonth": { "type": "number", "description": "Count of posts dispatched in the current period." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User access role." },
+        "twoFactorEnabled": { "type": "boolean", "description": "Flag indicating if 2FA security prompt is active." },
+        "securityKeyHash": { "type": "string", "description": "Mock/simulated API token or security key." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "subscriptionTier", "subscriptionStatus"]
+    },
+    "posts": {
+      "title": "Scheduled & Dispatched Social Media Posts",
+      "description": "User authored posts across LinkedIn, X/Twitter, and Instagram with real scheduling and sending timestamps.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique post record identifier." },
+        "userId": { "type": "string", "description": "Firebase Auth UID owning this post." },
+        "platform": { "type": "string", "enum": ["linkedin", "twitter", "instagram"], "description": "Target social media channel." },
+        "body": { "type": "string", "description": "The exact post text content." },
+        "scheduledAt": { "type": "string", "format": "date-time", "description": "ISO timestamp when the post is scheduled to send." },
+        "status": { "type": "string", "enum": ["scheduled", "sent", "draft", "failed"], "description": "Delivery lifecycle status." },
+        "sentAt": { "type": "string", "format": "date-time", "description": "Timestamp when post was actually sent/dispatched." },
+        "tone": { "type": "string", "description": "Semantic tone used during composition." },
+        "goal": { "type": "string", "description": "Target business conversion objective." },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "impressions": { "type": "number" },
+            "likes": { "type": "number" },
+            "reposts": { "type": "number" },
+            "comments": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "platform", "body", "status"]
+    },
+    "subscriptions": {
+      "title": "Subscription Tier Invoices & Plan History",
+      "description": "Records mock payment invoices, upgrades, downgrades, and billing cycles.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "tier": { "type": "string", "enum": ["free", "pro", "enterprise"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "interval": { "type": "string", "enum": ["month", "year"] },
+        "status": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "tier", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profile record accessible by the authenticated user."
+    },
+    "/posts/{postId}": {
+      "schema": "posts",
+      "description": "Social posts collection created and queried by the owner userId."
+    },
+    "/subscriptions/{subId}": {
+      "schema": "subscriptions",
+      "description": "Billing transaction records owned by the user."
+    }
+  }
+}
