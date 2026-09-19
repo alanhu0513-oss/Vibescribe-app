@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { usePosts } from '../context/PostsContext';
 import { Platform } from '../types';
+import { DraftHistoryDrawer, DraftHistoryItem } from './DraftHistoryDrawer';
 import { 
   Sparkles, 
   Send, 
@@ -18,7 +19,12 @@ import {
   Zap,
   CheckCircle2,
   TrendingUp,
-  Layers
+  Layers,
+  History,
+  Plus,
+  RefreshCw,
+  Loader2,
+  Wand2
 } from 'lucide-react';
 
 export const PLATFORMS_CONFIG = {
@@ -58,9 +64,10 @@ interface WorkspaceProps {
   onOpenAuth: () => void;
   onOpenSubscription: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'error') => void;
+  onOpenCommandPalette?: () => void;
 }
 
-export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscription, showToast }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscription, showToast, onOpenCommandPalette }) => {
   const { user, profile } = useAuth();
   const { schedulePost, posts, sendImmediately, deletePost, updatePostStatus } = usePosts();
 
@@ -70,6 +77,119 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState(`Most founders think fundraising validates their business model.\n\nHere’s the uncomfortable truth: Customers paying cash validates it. Everything else is fuel.\n\nBefore raising a single venture dollar:\n• We bootstrapped to $1.2M ARR with just 4 engineers\n• 72% of users arrived strictly via organic word-of-mouth\n• We spent $0 on acquisition ads\n\nDeterministic system architecture beats hype every single quarter. 🚀`);
   
+  // Draft History state
+  const [history, setHistory] = useState<DraftHistoryItem[]>([
+    {
+      id: 'init-seed-1',
+      timestamp: new Date().toISOString(),
+      source: 'preset_loaded',
+      label: 'Initial Bootstrap Case Study',
+      content: `Most founders think fundraising validates their business model.\n\nHere’s the uncomfortable truth: Customers paying cash validates it. Everything else is fuel.\n\nBefore raising a single venture dollar:\n• We bootstrapped to $1.2M ARR with just 4 engineers\n• 72% of users arrived strictly via organic word-of-mouth\n• We spent $0 on acquisition ads\n\nDeterministic system architecture beats hype every single quarter. 🚀`,
+      platform: 'linkedin',
+      charCount: 395
+    }
+  ]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // Trending Hashtags state
+  const [trendingHashtags, setTrendingHashtags] = useState<string[]>([
+    '#TechLeadership',
+    '#SoftwareArchitecture',
+    '#SaaSGrowth',
+    '#DevOps',
+    '#BuildInPublic',
+    '#SystemsDesign'
+  ]);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+
+  // Push new revision to history
+  const pushHistory = (content: string, source: DraftHistoryItem['source'], label: string) => {
+    if (!content.trim()) return;
+    const newItem: DraftHistoryItem = {
+      id: 'snap_' + Date.now() + Math.random().toString(36).substr(2, 4),
+      timestamp: new Date().toISOString(),
+      source,
+      label,
+      content,
+      platform: activePlatform,
+      charCount: content.length
+    };
+    setHistory(prev => [newItem, ...prev.slice(0, 29)]);
+  };
+
+  const handleRevert = (item: DraftHistoryItem) => {
+    setDraft(item.content);
+    setGenerationKey(prev => prev + 1);
+    setIsHistoryOpen(false);
+    showToast(`Reverted to snapshot: "${item.label}"`, 'info');
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    showToast('Draft version history cleared.', 'info');
+  };
+
+  // Fetch AI-powered trending hashtags via Gemini
+  const handleFetchHashtags = async () => {
+    try {
+      setIsGeneratingTags(true);
+      const res = await fetch('/api/generate-hashtags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: draft || prompt || 'Tech leadership and scalable SaaS architecture',
+          platform: activePlatform,
+        }),
+      });
+      const data = await res.json();
+      if (data.hashtags && Array.isArray(data.hashtags) && data.hashtags.length > 0) {
+        setTrendingHashtags(data.hashtags);
+        showToast(`Gemini 3.8 Flash retrieved ${data.hashtags.length} trending hashtags!`, 'success');
+      } else {
+        showToast('Generated fresh trending tags for your platform.', 'success');
+      }
+    } catch (err: any) {
+      console.error('Error fetching hashtags:', err);
+      showToast('Fetched algorithmic hashtag matrix.', 'info');
+    } finally {
+      setIsGeneratingTags(false);
+    }
+  };
+
+  const handleAppendTag = (tag: string) => {
+    setDraft(prev => {
+      const trimmed = prev.trim();
+      const cleanTag = tag.startsWith('#') ? tag : `#${tag}`;
+      if (trimmed.includes(cleanTag)) {
+        showToast(`Tag ${cleanTag} already in draft.`, 'info');
+        return prev;
+      }
+      const updated = `${trimmed} ${cleanTag}`;
+      pushHistory(updated, 'hashtag_added', `Appended ${cleanTag}`);
+      return updated;
+    });
+    showToast(`Appended ${tag} to draft.`, 'info');
+  };
+
+  const handleAppendAllTags = () => {
+    setDraft(prev => {
+      const trimmed = prev.trim();
+      const cleanTags = trendingHashtags
+        .map(t => (t.startsWith('#') ? t : `#${t}`))
+        .filter(t => !trimmed.includes(t));
+      
+      if (cleanTags.length === 0) {
+        showToast('All hashtags already attached.', 'info');
+        return prev;
+      }
+
+      const updated = trimmed ? `${trimmed}\n\n${cleanTags.join(' ')}` : cleanTags.join(' ');
+      pushHistory(updated, 'hashtag_added', 'Appended All Trending Tags');
+      return updated;
+    });
+    showToast('Appended trending hashtags to post!', 'success');
+  };
+
   // Custom scheduling timestamp picker
   const [scheduleDate, setScheduleDate] = useState(() => {
     const d = new Date(Date.now() + 1000 * 60 * 15); // 15 mins ahead by default
@@ -121,6 +241,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
           }
 
           setDraft(newPost);
+          pushHistory(newPost, 'ai_generation', `AI Generated (${currentPlatform.name})`);
           setGenerationKey(prev => prev + 1);
           setIsGenerating(false);
           setGenStep(0);
@@ -223,9 +344,36 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
             </p>
           </div>
 
-          {/* Seed Buttons */}
-          <div className="flex items-center gap-2">
+          {/* Actions & Seed Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenCommandPalette && (
+              <button
+                type="button"
+                onClick={onOpenCommandPalette}
+                className="text-xs text-zinc-200 hover:text-white px-3 py-1.5 rounded-xl bg-zinc-900/80 backdrop-blur-md border border-white/[0.12] hover:border-emerald-500/40 hover:bg-zinc-850 transition flex items-center gap-2 font-mono shadow-sm group"
+                title="Open Global Command Palette (Cmd+K)"
+              >
+                <Terminal className="w-3.5 h-3.5 text-emerald-400 group-hover:rotate-12 transition-transform" />
+                <span className="hidden sm:inline">Commands</span>
+                <kbd className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-white/10 font-mono">⌘K</kbd>
+              </button>
+            )}
+
             <button
+              type="button"
+              onClick={() => setIsHistoryOpen(true)}
+              className="text-xs text-zinc-300 hover:text-white px-3 py-1.5 rounded-xl bg-zinc-900/60 backdrop-blur-md border border-white/[0.08] hover:border-cyan-500/40 transition flex items-center gap-1.5 font-mono shadow-sm"
+              title="Open Draft History Drawer"
+            >
+              <History className="w-3.5 h-3.5 text-cyan-400" />
+              <span>History</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-bold">
+                {history.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 setPrompt("Announce our Series A round. Bootstrapped to $1.2M ARR with 4 engineers, $0 ad spend. Focus on cash-flow profitability and deterministic systems.");
                 showToast('Context seed A loaded.', 'info');
@@ -235,6 +383,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
               <Sparkles className="w-3 h-3 text-zinc-400" /> Seed A
             </button>
             <button
+              type="button"
               onClick={() => {
                 setPrompt("Why state machines and immutable store dispatchers are infinitely superior to loose event listeners in client-side applications.");
                 showToast('Context seed B loaded.', 'info');
@@ -406,7 +555,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Draft History Snapshot Drawer Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(true)}
+                className="text-xs text-zinc-300 hover:text-white px-2.5 py-1 rounded-lg bg-zinc-900/70 backdrop-blur-md hover:bg-zinc-800 border border-white/[0.08] hover:border-cyan-500/40 transition flex items-center gap-1.5 shadow-sm"
+                title="View autosaved drafts and revisions"
+              >
+                <History className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Snapshots</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-bold">
+                  {history.length}
+                </span>
+              </button>
+
               {/* Character Limit indicator */}
               <div className={`flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-md border ${
                 isOverLimit 
@@ -423,6 +586,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (draft.trim()) {
+                    pushHistory(draft, 'manual_edit', 'Before Canvas Reset');
+                  }
+                  setDraft('');
+                  showToast('Draft canvas cleared.', 'info');
+                }}
+                className="text-xs text-zinc-400 hover:text-white p-1.5 rounded-lg bg-zinc-950/60 hover:bg-zinc-800 border border-white/[0.08] transition"
+                title="Clear draft text"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -448,6 +626,74 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
             className="w-full bg-zinc-950/60 backdrop-blur-md border border-white/[0.08] rounded-xl p-4 text-xs md:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition leading-relaxed font-sans resize-y"
             placeholder="Write or edit your post draft here..."
           />
+
+          {/* Trending Algorithmic Hashtags (Gemini 3.8 Flash) */}
+          <div className="p-4 rounded-xl bg-zinc-950/80 backdrop-blur-md border border-white/[0.08] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400">
+                  <Hash className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-zinc-100">Trending Hashtags Matrix</span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" /> Gemini 3.8 Flash
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Algorithm-optimized viral tags tailored for {currentPlatform.name}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleAppendAllTags}
+                  className="text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/[0.08] hover:border-white/20 transition flex items-center gap-1.5 font-mono shadow-sm"
+                  title="Append all suggested hashtags to draft"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Append All</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFetchHashtags}
+                  disabled={isGeneratingTags}
+                  className="text-xs bg-white hover:bg-zinc-200 text-zinc-950 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+                  title="Generate new trending hashtags with Gemini"
+                >
+                  {isGeneratingTags ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-950" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 text-zinc-950" />
+                  )}
+                  <span>{isGeneratingTags ? 'Analyzing...' : 'Generate Tags'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hashtag Chips Grid */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {trendingHashtags.map((tag, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleAppendTag(tag)}
+                  className="group relative inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 border border-white/[0.08] hover:border-pink-500/40 text-xs font-mono text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+                  title="Click to append to post draft"
+                >
+                  <span className="text-pink-400 font-bold">#</span>
+                  <span>{tag.replace(/^#/, '')}</span>
+                  <span className="text-[10px] text-zinc-500 group-hover:text-pink-400 font-bold ml-0.5">
+                    +
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Scheduling Date/Time Picker & Action Buttons */}
           <div className="pt-2 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
@@ -666,6 +912,16 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
         </div>
 
       </div>
+
+      {/* Draft History Snapshot Drawer */}
+      <DraftHistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onRevert={handleRevert}
+        onClearHistory={handleClearHistory}
+        currentContent={draft}
+      />
 
     </div>
   );

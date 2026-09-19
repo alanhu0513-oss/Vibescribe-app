@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePosts } from '../context/PostsContext';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -12,9 +12,13 @@ import {
   Download, 
   Zap, 
   ShieldCheck,
-  Calendar
+  Calendar,
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { PLATFORMS_CONFIG } from './Workspace';
+import { BestPostingTimesHeatmap } from './BestPostingTimesHeatmap';
+import { generatePdfReport } from '../utils/generatePdfReport';
 
 interface AnalyticsProps {
   onNavigateWorkspace: () => void;
@@ -24,9 +28,10 @@ interface AnalyticsProps {
 export const Analytics: React.FC<AnalyticsProps> = ({ onNavigateWorkspace, showToast }) => {
   const { posts, deletePost, updatePostStatus, sendImmediately } = usePosts();
   const { profile } = useAuth();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const totalPosts = posts.length;
-  const sentPosts = posts.filter(p => p.status === 'sent').length;
+  const sentPosts = posts.filter(p => p.status === 'sent' || p.status === 'published').length;
   const scheduledPosts = posts.filter(p => p.status === 'scheduled').length;
   const draftPosts = posts.filter(p => p.status === 'draft').length;
 
@@ -37,7 +42,21 @@ export const Analytics: React.FC<AnalyticsProps> = ({ onNavigateWorkspace, showT
   const dispatchRatio = totalPosts > 0 ? Math.round((sentPosts / totalPosts) * 100) : 0;
   const totalImpressions = posts.reduce((acc, curr) => acc + (curr.metrics?.impressions || 0), 0);
 
-  const handleExport = () => {
+  const handleDownloadPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      await new Promise(r => setTimeout(r, 400));
+      generatePdfReport(posts, profile);
+      showToast('Performance & Audit report downloaded as PDF.', 'success');
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      showToast('Failed to generate PDF report', 'error');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleExportJson = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(posts, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -67,19 +86,34 @@ export const Analytics: React.FC<AnalyticsProps> = ({ onNavigateWorkspace, showT
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={onNavigateWorkspace}
             className="text-xs text-zinc-300 hover:text-white px-3.5 py-2 rounded-xl bg-zinc-900/60 backdrop-blur-md border border-white/[0.08] hover:border-white/20 transition flex items-center gap-1.5 font-mono shadow-sm"
           >
             ← Back to Workspace
           </button>
+          
           <button
-            onClick={handleExport}
-            className="text-xs bg-white text-zinc-950 hover:bg-zinc-200 font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+            onClick={handleExportJson}
+            className="text-xs text-zinc-300 hover:text-white px-3 py-2 rounded-xl bg-zinc-900/60 backdrop-blur-md border border-white/[0.08] hover:border-white/20 transition flex items-center gap-1.5 font-mono shadow-sm"
+            title="Export raw JSON payload"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export Audit</span>
+            <Download className="w-3.5 h-3.5 text-zinc-400" />
+            <span>JSON</span>
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="text-xs bg-white text-zinc-950 hover:bg-zinc-200 font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-lg shadow-white/10 active:scale-[0.99] disabled:opacity-75"
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            <span>Download Report (PDF)</span>
           </button>
         </div>
       </div>
@@ -165,6 +199,9 @@ export const Analytics: React.FC<AnalyticsProps> = ({ onNavigateWorkspace, showT
         </div>
 
       </div>
+
+      {/* D3 High-Engagement Posting Times Heatmap */}
+      <BestPostingTimesHeatmap posts={posts} />
 
       {/* Channel Distribution & Timeline Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

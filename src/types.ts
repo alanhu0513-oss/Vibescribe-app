@@ -49,6 +49,8 @@ export interface SocialPost {
   updatedAt: string;
 }
 
+export type Post = SocialPost;
+
 export interface BillingInvoice {
   id: string;
   userId: string;

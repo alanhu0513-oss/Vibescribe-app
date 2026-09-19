@@ -6,6 +6,8 @@ import { Analytics } from './components/Analytics';
 import { AuthModal } from './components/AuthModal';
 import { SubscriptionModal } from './components/SubscriptionModal';
 import { SecurityModal } from './components/SecurityModal';
+import { CommandPalette } from './components/CommandPalette';
+import { generatePdfReport } from './utils/generatePdfReport';
 import { 
   Terminal, 
   BarChart3, 
@@ -33,9 +35,22 @@ export default function App() {
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [securityModalOpen, setSecurityModalOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+
+  // Global Cmd+K / Ctrl+K listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
     const id = 't_' + Date.now() + Math.random().toString(36).substr(2, 4);
@@ -195,6 +210,17 @@ export default function App() {
                   {posts.length}
                 </span>
               </button>
+
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-xs text-zinc-400 hover:text-white hover:bg-zinc-900/60 border border-transparent hover:border-white/[0.08] transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <Terminal className="w-4 h-4 text-emerald-400 group-hover:rotate-12 transition-transform" />
+                  <span className="tracking-tight">Command Palette</span>
+                </div>
+                <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-white/10">⌘K</kbd>
+              </button>
             </div>
 
             {/* Subscription Card Widget */}
@@ -328,6 +354,7 @@ export default function App() {
               onOpenAuth={() => setAuthModalOpen(true)}
               onOpenSubscription={() => setSubscriptionModalOpen(true)}
               showToast={showToast}
+              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
             />
           ) : (
             <Analytics 
@@ -354,6 +381,37 @@ export default function App() {
       <SecurityModal
         isOpen={securityModalOpen}
         onClose={() => setSecurityModalOpen(false)}
+      />
+
+      {/* Global Command Palette (Cmd+K) */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSelectView={(v) => setCurrentView(v)}
+        onOpenSecurity={() => setSecurityModalOpen(true)}
+        onOpenSubscription={() => setSubscriptionModalOpen(true)}
+        onOpenAuth={() => { setAuthModalMode('signin'); setAuthModalOpen(true); }}
+        onSelectPlatform={() => setCurrentView('workspace')}
+        onNewPost={() => {
+          setCurrentView('workspace');
+          showToast('Canvas ready for new post.', 'info');
+        }}
+        onTriggerGenerate={() => {
+          setCurrentView('workspace');
+          showToast('Focusing AI Post Generator in Workspace.', 'info');
+        }}
+        onTriggerHashtags={() => {
+          setCurrentView('workspace');
+          showToast('Focusing Trending Hashtags Matrix.', 'info');
+        }}
+        onOpenDraftHistory={() => {
+          setCurrentView('workspace');
+          showToast('Draft history snapshots available in Workspace.', 'info');
+        }}
+        onDownloadReport={() => {
+          generatePdfReport(posts, profile);
+          showToast('PDF Audit Report generated and downloaded.', 'success');
+        }}
       />
 
     </div>
