@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { usePosts } from '../context/PostsContext';
@@ -24,7 +24,8 @@ import {
   Plus,
   RefreshCw,
   Loader2,
-  Wand2
+  Wand2,
+  Search
 } from 'lucide-react';
 
 export const PLATFORMS_CONFIG = {
@@ -76,8 +77,19 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
   const [goal, setGoal] = useState('Maximize Organic Discourse');
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState(`Most founders think fundraising validates their business model.\n\nHere’s the uncomfortable truth: Customers paying cash validates it. Everything else is fuel.\n\nBefore raising a single venture dollar:\n• We bootstrapped to $1.2M ARR with just 4 engineers\n• 72% of users arrived strictly via organic word-of-mouth\n• We spent $0 on acquisition ads\n\nDeterministic system architecture beats hype every single quarter. 🚀`);
+  const [tags, setTags] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   
-  // Draft History state
+  // Auto-save draft
+  useEffect(() => {
+    const saved = localStorage.getItem('vibescribe_draft');
+    if (saved) setDraft(saved);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => localStorage.setItem('vibescribe_draft', draft), 1000);
+    return () => clearTimeout(timer);
+  }, [draft]);
   const [history, setHistory] = useState<DraftHistoryItem[]>([
     {
       id: 'init-seed-1',
@@ -270,7 +282,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
         body: draft,
         scheduledAt: scheduledIso,
         tone,
-        goal
+        goal,
+        tags: tags.split(',').map(t => t.trim()).filter(Boolean)
       });
       showToast(`Post scheduled for ${new Date(scheduleDate).toLocaleString()}!`, 'success');
     } catch (err: any) {
@@ -506,6 +519,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Tags Input */}
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-zinc-400 mb-1.5">
+              Post Tags (comma separated)
+            </label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g. startup, growth, tech"
+              className="w-full bg-zinc-950/60 backdrop-blur-md border border-white/[0.08] rounded-xl p-3.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition leading-relaxed font-sans"
+            />
           </div>
 
           {/* Generation Progress Bar */}
@@ -840,18 +867,26 @@ export const Workspace: React.FC<WorkspaceProps> = ({ onOpenAuth, onOpenSubscrip
               <Clock className="w-3.5 h-3.5 text-zinc-400" />
               <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-300">Dispatched & Scheduled Queue</h3>
             </div>
-            <span className="text-[11px] font-mono bg-zinc-900/60 backdrop-blur-md text-zinc-300 px-2 py-0.5 rounded border border-white/[0.08]">
-              {posts.length} posts
-            </span>
+          </div>
+
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search posts..."
+              className="w-full bg-zinc-950/60 backdrop-blur-md border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
+            />
           </div>
 
           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-            {posts.length === 0 ? (
+            {posts.filter(p => p.body.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
               <div className="p-6 text-center rounded-xl border border-white/[0.08] bg-zinc-900/30 backdrop-blur-md text-zinc-500 text-xs font-mono">
                 No posts scheduled yet. Use the composition suite on the left to schedule your first post.
               </div>
             ) : (
-              posts.map((item) => {
+              posts.filter(p => p.body.toLowerCase().includes(searchQuery.toLowerCase())).map((item) => {
                 const conf = PLATFORMS_CONFIG[item.platform] || PLATFORMS_CONFIG.linkedin;
                 const snippet = item.body.split('\n')[0].slice(0, 50) + (item.body.length > 50 ? '...' : '');
 

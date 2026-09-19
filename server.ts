@@ -80,6 +80,25 @@ async function startServer() {
     res.json({ status: 'ok', hasGeminiKey: Boolean(process.env.GEMINI_API_KEY) });
   });
 
+  async function generateHashtagsWithRetry(ai: GoogleGenAI, prompt: string, retries = 1): Promise<any> {
+    try {
+      return await ai.models.generateContent({
+        model: 'gemini-1.5-flash-8b',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+        },
+      });
+    } catch (err: any) {
+      if (retries > 0 && (err.status === 503 || err.status === 429)) {
+        await new Promise(r => setTimeout(r, 1500));
+        return generateHashtagsWithRetry(ai, prompt, retries - 1);
+      }
+      throw err;
+    }
+  }
+
   // AI-powered Trending Hashtag generator
   app.post('/api/generate-hashtags', async (req, res) => {
     try {
@@ -110,14 +129,7 @@ Instructions:
 Example format: ["#TechLeadership", "#SoftwareEngineering", "#Architecture", "#SaaS", "#DevOps"]
 `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-      });
+      const response = await generateHashtagsWithRetry(ai, prompt);
 
       const raw = response.text?.trim() || '[]';
       let tags: string[] = [];

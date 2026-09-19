@@ -39,6 +39,7 @@ export interface SocialPost {
   sentAt?: string; // ISO string when actually sent
   tone?: string;
   goal?: string;
+  tags?: string[];
   metrics?: {
     impressions: number;
     likes: number;

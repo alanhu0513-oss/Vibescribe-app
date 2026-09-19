@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { Clock, Sparkles, TrendingUp, Info } from 'lucide-react';
+import { Clock, Sparkles, Info, Check } from 'lucide-react';
 import { Post } from '../types';
 
 interface BestPostingTimesHeatmapProps {
@@ -21,11 +21,26 @@ interface HeatmapCell {
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = [6, 8, 10, 12, 14, 16, 18, 20, 22];
 
-export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = ({ posts }) => {
+export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = ({ posts, onSelectTimeSlot }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [containerWidth, setContainerWidth] = useState(650);
+
+  // Responsive container width tracking
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(Math.floor(entry.contentRect.width));
+        }
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Generate heatmap data based on real posts + algorithm
   const generateData = (): HeatmapCell[] => {
@@ -44,11 +59,11 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
         }
 
         if (hour === 8 || hour === 10) {
-          baseScore += 35; // Morning commutes / standup windows
+          baseScore += 35; // Morning standup/commute windows
         } else if (hour === 12 || hour === 14) {
           baseScore += 25; // Lunch & early afternoon
         } else if (hour === 18) {
-          baseScore += 20; // Post-work
+          baseScore += 20; // Evening
         }
 
         // Incorporate actual posts in that day/hour if any
@@ -94,10 +109,9 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
     if (!svgRef.current || !containerRef.current) return;
 
     const data = generateData();
-    const containerWidth = containerRef.current.clientWidth || 650;
-    const margin = { top: 30, right: 20, bottom: 20, left: 45 };
-    const width = containerWidth - margin.left - margin.right;
-    const height = 260 - margin.top - margin.bottom;
+    const margin = { top: 25, right: 15, bottom: 20, left: 42 };
+    const width = Math.max(300, containerWidth - margin.left - margin.right);
+    const height = 240 - margin.top - margin.bottom;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -133,7 +147,7 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
 
     // Add X Axis Labels
     g.append('g')
-      .attr('transform', `translate(0, -8)`)
+      .attr('transform', `translate(0, -6)`)
       .selectAll('text')
       .data(HOURS)
       .enter()
@@ -142,7 +156,7 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
       .attr('y', 0)
       .attr('text-anchor', 'middle')
       .attr('fill', '#71717a')
-      .attr('font-size', '10px')
+      .attr('font-size', '9.5px')
       .attr('font-family', 'ui-monospace, monospace')
       .text(d => {
         const ampm = d >= 12 ? 'p' : 'a';
@@ -156,11 +170,11 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
       .data(DAYS)
       .enter()
       .append('text')
-      .attr('x', -10)
-      .attr('y', d => (y(d) || 0) + y.bandwidth() / 2 + 4)
+      .attr('x', -8)
+      .attr('y', d => (y(d) || 0) + y.bandwidth() / 2 + 3.5)
       .attr('text-anchor', 'end')
       .attr('fill', '#a1a1aa')
-      .attr('font-size', '11px')
+      .attr('font-size', '10px')
       .attr('font-weight', '500')
       .attr('font-family', 'system-ui, sans-serif')
       .text(d => d);
@@ -177,8 +191,8 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
       .append('rect')
       .attr('x', d => x(d.hour) || 0)
       .attr('y', d => y(d.day) || 0)
-      .attr('rx', 5)
-      .attr('ry', 5)
+      .attr('rx', 4)
+      .attr('ry', 4)
       .attr('width', x.bandwidth())
       .attr('height', y.bandwidth())
       .style('fill', d => colorScale(d.score))
@@ -200,6 +214,11 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
         d3.select(event.currentTarget as SVGRectElement)
           .style('stroke', d.score >= 85 ? 'rgba(52, 211, 153, 0.4)' : 'rgba(255, 255, 255, 0.05)')
           .style('stroke-width', d.score >= 85 ? 1.5 : 1);
+      })
+      .on('click', (event: MouseEvent, d) => {
+        if (onSelectTimeSlot) {
+          onSelectTimeSlot(d.day, d.hour);
+        }
       });
 
     // Add peak star or dot indicator for top scores (>85)
@@ -208,45 +227,35 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
       .append('circle')
       .attr('cx', d => (x(d.hour) || 0) + x.bandwidth() / 2)
       .attr('cy', d => (y(d.day) || 0) + y.bandwidth() / 2)
-      .attr('r', 2)
+      .attr('r', 1.8)
       .attr('fill', '#ffffff')
-      .attr('opacity', 0.8)
+      .attr('opacity', 0.85)
       .style('pointer-events', 'none');
 
-  }, [posts]);
-
-  // Handle window resizing
-  useEffect(() => {
-    const handleResize = () => {
-      if (!svgRef.current || !containerRef.current) return;
-      // Trigger re-render by simulating posts ref or dispatch
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [posts, containerWidth]);
 
   return (
-    <div className="p-6 rounded-2xl bg-zinc-900/50 backdrop-blur-md border border-white/[0.08] shadow-xl relative overflow-hidden">
+    <div className="p-4 sm:p-5 rounded-xl bg-zinc-900/40 backdrop-blur-md border border-white/[0.08] shadow-xl relative overflow-hidden flex flex-col gap-3.5">
       
       {/* Card Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-white/[0.04]">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-emerald-400" />
               <span>Algorithmic Peak Engagement Windows</span>
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              D3 Heatmap Engine
+            <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              D3 Engine
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Calculated across social algorithm throughput and historical audience retention curves.
+            Calculated across social platform saturation curves and audience active standup windows.
           </p>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400">
+        <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400 self-start sm:self-auto">
           <span>Low</span>
           <div className="flex items-center gap-1">
             <span className="w-3.5 h-3 rounded bg-zinc-900 border border-white/5" />
@@ -255,31 +264,31 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
             <span className="w-3.5 h-3 rounded bg-emerald-500" />
             <span className="w-3.5 h-3 rounded bg-emerald-300" />
           </div>
-          <span className="text-emerald-400 font-bold">Peak (90%+)</span>
+          <span className="text-emerald-400 font-bold">Peak (&gt;85%)</span>
         </div>
       </div>
 
       {/* Recommended Quick-Picks */}
-      <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl bg-zinc-950/60 border border-white/[0.06]">
+      <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-zinc-950/60 border border-white/[0.05]">
         <span className="text-[10px] font-mono uppercase text-zinc-400 flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-emerald-400" /> Peak Dispatches:
+          <Sparkles className="w-3 h-3 text-emerald-400" /> Peak Windows:
         </span>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-          <span>Tue @ 10:00 AM</span>
-          <span className="text-[10px] text-emerald-400 font-semibold">(96% Reach Index • LinkedIn)</span>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-white/[0.08] text-zinc-200 text-xs font-mono">
+          <span className="font-semibold text-emerald-400">Tue @ 10:00 AM</span>
+          <span className="text-[10px] text-zinc-400">(96% Index • LinkedIn)</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-          <span>Wed @ 2:00 PM</span>
-          <span className="text-[10px] text-emerald-400 font-semibold">(92% Reach Index • Twitter / X)</span>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-white/[0.08] text-zinc-200 text-xs font-mono">
+          <span className="font-semibold text-cyan-400">Wed @ 02:00 PM</span>
+          <span className="text-[10px] text-zinc-400">(92% Index • Twitter / X)</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-          <span>Thu @ 10:00 AM</span>
-          <span className="text-[10px] text-emerald-400 font-semibold">(94% Reach Index • LinkedIn)</span>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 border border-white/[0.08] text-zinc-200 text-xs font-mono">
+          <span className="font-semibold text-emerald-400">Thu @ 10:00 AM</span>
+          <span className="text-[10px] text-zinc-400">(94% Index • LinkedIn)</span>
         </div>
       </div>
 
       {/* SVG Container */}
-      <div ref={containerRef} className="w-full overflow-x-auto relative">
+      <div ref={containerRef} className="w-full overflow-x-auto relative min-h-[200px]">
         <svg ref={svgRef} className="w-full block select-none" />
 
         {/* Hover Tooltip */}
@@ -306,10 +315,10 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
               </span>
             </div>
             <div className="text-[11px] text-zinc-400 flex flex-col gap-0.5">
-              <span>Prime Channel: <strong className="text-zinc-200">{hoveredCell.bestPlatform}</strong></span>
+              <span>Optimal: <strong className="text-zinc-200">{hoveredCell.bestPlatform}</strong></span>
               {hoveredCell.postsCount > 0 && (
-                <span className="text-emerald-400 font-mono text-[10px]">
-                  ✓ {hoveredCell.postsCount} existing scheduled post in this slot
+                <span className="text-emerald-400 font-mono text-[10px] flex items-center gap-1">
+                  <Check className="w-3 h-3" /> {hoveredCell.postsCount} existing record in this window
                 </span>
               )}
             </div>
@@ -317,12 +326,12 @@ export const BestPostingTimesHeatmap: React.FC<BestPostingTimesHeatmapProps> = (
         )}
       </div>
 
-      <div className="mt-3 text-[11px] text-zinc-500 flex items-center justify-between border-t border-white/[0.05] pt-3">
+      <div className="text-[10px] text-zinc-500 flex items-center justify-between border-t border-white/[0.04] pt-2">
         <span className="flex items-center gap-1.5">
-          <Info className="w-3.5 h-3.5 text-zinc-400" />
-          Highlighted dots indicate &gt;85% algorithmic saturation windows.
+          <Info className="w-3 h-3 text-zinc-400" />
+          Dots signify &gt;85% algorithmic audience peak retention.
         </span>
-        <span className="font-mono text-[10px] text-zinc-400">
+        <span className="font-mono text-zinc-400">
           Source: Dynamic Engagement Matrix
         </span>
       </div>
